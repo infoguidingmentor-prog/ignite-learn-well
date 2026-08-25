@@ -15,6 +15,8 @@ export const Route = createFileRoute("/mentor-login")({
   component: () => (
     <StaffLogin
       role="mentor"
+      requestRole="mentor"
+      portalPath="/mentor-login"
       kicker="Mentor access"
       title="Mentor portal"
       blurb="Students who booked you, and how they're trending."
