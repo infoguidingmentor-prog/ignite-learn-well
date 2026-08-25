@@ -211,9 +211,12 @@ function MeditationsAdmin() {
             "mt-3 flex cursor-pointer flex-col items-center gap-1 rounded-xl border-2 border-dashed border-border bg-paper/40 px-6 py-9 text-center",
             dragging && "border-primary bg-primary/5",
           )}>
-          <Upload className="size-5 text-muted-foreground" />
-          <span className="text-sm font-medium">
-            {busy ? "Uploading…" : `Drop audio here for ${SLOTS.find((s) => s.value === slot)?.label}`}
+          <span className="pointer-events-none inline-flex items-center gap-2 rounded-full bg-primary px-5 py-2.5 text-sm font-medium text-primary-foreground">
+            <Upload className="size-4" />
+            {busy ? "Uploading…" : "Choose MP3 files"}
+          </span>
+          <span className="mt-2 text-sm">
+            or drop them here for <span className="font-medium">{SLOTS.find((s) => s.value === slot)?.label}</span>
           </span>
           <span className="text-xs text-muted-foreground">
             .mp3, .m4a or .wav — several at once is fine. Length is read automatically.
@@ -667,9 +670,12 @@ function MusicAdmin() {
           className={cn(
             "mt-3 flex cursor-pointer flex-col items-center gap-1 rounded-xl border-2 border-dashed border-border bg-paper/40 px-6 py-8 text-center",
             dragging && "border-primary bg-primary/5")}>
-          <Upload className="size-5 text-muted-foreground" />
-          <span className="text-sm font-medium">
-            {busy ? "Uploading…" : `Drop music here for ${USE_FOR.find((u) => u.value === useFor)?.label}`}
+          <span className="pointer-events-none inline-flex items-center gap-2 rounded-full bg-primary px-5 py-2.5 text-sm font-medium text-primary-foreground">
+            <Upload className="size-4" />
+            {busy ? "Uploading…" : "Choose MP3 files"}
+          </span>
+          <span className="mt-2 text-sm">
+            or drop them here for <span className="font-medium">{USE_FOR.find((u) => u.value === useFor)?.label}</span>
           </span>
           <span className="text-xs text-muted-foreground">Long, loopable tracks work best.</span>
           <input type="file" multiple accept="audio/*,.mp3,.m4a,.wav" className="hidden"
