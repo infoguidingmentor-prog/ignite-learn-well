@@ -48,11 +48,41 @@ function Content() {
 }
 
 /* ---------------- Meditations ---------------- */
+const SLOTS = [
+  { value: "morning", label: "Morning" },
+  { value: "afternoon", label: "Afternoon" },
+  { value: "evening", label: "Evening" },
+  { value: "night", label: "Night" },
+  { value: "any", label: "Any time" },
+] as const;
+
+type Slot = (typeof SLOTS)[number]["value"];
+
 type Med = {
   id: string; title: string; description: string | null;
   coach_name: string | null; audio_url: string; duration_seconds: number;
-  time_of_day: "morning" | "evening" | "any"; is_published: boolean;
+  time_of_day: Slot; is_published: boolean;
 };
+
+const AUDIO_EXT = [".mp3", ".m4a", ".wav", ".aac", ".ogg"];
+const isAudio = (f: File) =>
+  f.type.startsWith("audio/") || AUDIO_EXT.some((x) => f.name.toLowerCase().endsWith(x));
+
+/** Read length from the file itself so nobody types it in by hand. */
+function readDuration(file: File): Promise<number> {
+  return new Promise((resolve) => {
+    const url = URL.createObjectURL(file);
+    const a = new Audio();
+    const done = (v: number) => { URL.revokeObjectURL(url); resolve(v); };
+    a.addEventListener("loadedmetadata", () =>
+      done(Number.isFinite(a.duration) ? Math.round(a.duration) : 0));
+    a.addEventListener("error", () => done(0));
+    a.src = url;
+  });
+}
+
+const titleFromFile = (n: string) =>
+  n.replace(/\.[^.]+$/, "").replace(/[_-]+/g, " ").trim().replace(/^./, (c) => c.toUpperCase());
 
 function MeditationsAdmin() {
   const qc = useQueryClient();
@@ -66,35 +96,63 @@ function MeditationsAdmin() {
     },
   });
 
-  const [form, setForm] = useState({
-    title: "", description: "", coach_name: "",
-    time_of_day: "morning" as Med["time_of_day"], duration_seconds: 300,
-  });
-  const [file, setFile] = useState<File | null>(null);
+  const [slot, setSlot] = useState<Slot>("morning");
+  const [coach, setCoach] = useState("");
+  const [dragging, setDragging] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [filter, setFilter] = useState<Slot | "all">("all");
 
-  const upload = async () => {
-    if (!file || !form.title.trim()) { toast.error("Add a title and pick an audio file."); return; }
+  const uploadFiles = async (files: File[]) => {
+    const audio = files.filter(isAudio);
+    if (files.length && !audio.length) {
+      toast.error("Meditations are audio — try .mp3, .m4a or .wav.");
+      return;
+    }
     setBusy(true);
-    try {
-      const path = `meditations/${Date.now()}-${file.name.replace(/[^\w.\-]+/g, "_")}`;
-      const { error: upErr } = await supabase.storage.from("meditation-audio")
-        .upload(path, file, { contentType: file.type || "audio/mpeg", upsert: false });
-      if (upErr) throw upErr;
-      const { error: insErr } = await supabase.from("meditation_tracks").insert({
-        title: form.title, description: form.description || null, coach_name: form.coach_name || null,
-        audio_url: path, duration_seconds: form.duration_seconds,
-        time_of_day: form.time_of_day, is_published: true,
-      });
-      if (insErr) throw insErr;
-      toast.success("Uploaded.");
-      setForm({ title: "", description: "", coach_name: "", time_of_day: "morning", duration_seconds: 300 });
-      setFile(null);
+    let ok = 0;
+    for (const file of audio) {
+      try {
+        const seconds = await readDuration(file);
+        const path = `meditations/${Date.now()}-${file.name.replace(/[^\w.\-]+/g, "_")}`;
+        const { error: upErr } = await supabase.storage.from("meditation-audio")
+          .upload(path, file, { contentType: file.type || "audio/mpeg", upsert: false });
+        if (upErr) throw upErr;
+        const { error: insErr } = await supabase.from("meditation_tracks").insert({
+          title: titleFromFile(file.name), coach_name: coach || null,
+          audio_url: path, duration_seconds: seconds,
+          time_of_day: slot, is_published: true,
+        });
+        if (insErr) throw insErr;
+        ok++;
+      } catch (e: any) {
+        toast.error(`${file.name}: ${e?.message ?? "upload failed"}`);
+      }
+    }
+    setBusy(false);
+    if (ok) toast.success(`Added ${ok} to ${SLOTS.find((s) => s.value === slot)?.label}.`);
+    qc.invalidateQueries({ queryKey: ["admin-meditations"] });
+    qc.invalidateQueries({ queryKey: ["meditation-tracks"] });
+  };
+
+  /** Mis-slotted a track? This moves it, and students see it move. */
+  const changeSlot = useMutation({
+    mutationFn: async ({ id, next }: { id: string; next: Slot }) => {
+      const { error } = await supabase.from("meditation_tracks")
+        .update({ time_of_day: next }).eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: (_d, v) => {
+      toast.success(`Moved to ${SLOTS.find((s) => s.value === v.next)?.label}.`);
       qc.invalidateQueries({ queryKey: ["admin-meditations"] });
       qc.invalidateQueries({ queryKey: ["meditation-tracks"] });
-    } catch (e: any) {
-      toast.error(e?.message ?? "Upload failed.");
-    } finally { setBusy(false); }
+    },
+    onError: (e: any) => toast.error(e?.message ?? "Couldn't move that track."),
+  });
+
+  const rename = async (id: string, title: string) => {
+    if (!title.trim()) return;
+    await supabase.from("meditation_tracks").update({ title: title.trim() }).eq("id", id);
+    qc.invalidateQueries({ queryKey: ["meditation-tracks"] });
   };
 
   const togglePublish = useMutation({
@@ -111,54 +169,88 @@ function MeditationsAdmin() {
       }
       await supabase.from("meditation_tracks").delete().eq("id", r.id);
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["admin-meditations"] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["admin-meditations"] });
+      qc.invalidateQueries({ queryKey: ["meditation-tracks"] });
+    },
   });
+
+  const count = (s: Slot) => rows.filter((r) => r.time_of_day === s).length;
+  const visible = filter === "all" ? rows : rows.filter((r) => r.time_of_day === filter);
 
   return (
     <div className="space-y-6">
       <section className="soft-card p-5">
-        <div className="text-xs uppercase tracking-widest text-muted-foreground mb-3">Upload a meditation</div>
-        <div className="grid gap-3 md:grid-cols-2">
-          <input className="rounded-lg border border-border bg-paper/60 px-3 py-2 text-sm"
-            placeholder="Title" value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} />
-          <input className="rounded-lg border border-border bg-paper/60 px-3 py-2 text-sm"
-            placeholder="Coach name (optional)" value={form.coach_name} onChange={(e) => setForm({ ...form, coach_name: e.target.value })} />
-          <input className="rounded-lg border border-border bg-paper/60 px-3 py-2 text-sm md:col-span-2"
-            placeholder="Short description" value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} />
-          <select className="rounded-lg border border-border bg-paper/60 px-2 py-2 text-sm"
-            value={form.time_of_day} onChange={(e) => setForm({ ...form, time_of_day: e.target.value as Med["time_of_day"] })}>
-            <option value="morning">Morning</option>
-            <option value="evening">Evening</option>
-            <option value="any">Any time</option>
-          </select>
-          <input type="number" className="rounded-lg border border-border bg-paper/60 px-3 py-2 text-sm"
-            placeholder="Duration (seconds)" value={form.duration_seconds}
-            onChange={(e) => setForm({ ...form, duration_seconds: Number(e.target.value) || 0 })} />
-          <label className="md:col-span-2 flex items-center gap-2 rounded-lg border border-dashed border-border bg-paper/40 px-3 py-3 text-sm cursor-pointer">
-            <Upload className="size-4" />
-            <span className="text-muted-foreground">{file ? file.name : "Choose .mp3 file"}</span>
-            <input type="file" accept="audio/*" className="hidden"
-              onChange={(e) => setFile(e.target.files?.[0] ?? null)} />
-          </label>
+        <div className="text-xs uppercase tracking-widest text-muted-foreground mb-3">
+          Add meditations
         </div>
-        <div className="mt-3">
-          <Button onClick={upload} disabled={busy} className="rounded-full">
-            <Upload className="mr-2 size-4" /> {busy ? "Uploading…" : "Upload track"}
-          </Button>
+
+        <div className="flex flex-wrap gap-2">
+          {SLOTS.map((s) => (
+            <button key={s.value} onClick={() => setSlot(s.value)}
+              className={cn("rounded-full border border-border px-4 py-1.5 text-sm",
+                slot === s.value && "bg-primary text-primary-foreground border-primary")}>
+              {s.label} <span className="opacity-70">{count(s.value)}</span>
+            </button>
+          ))}
         </div>
+
+        <input className="mt-3 w-full rounded-lg border border-border bg-paper/60 px-3 py-2 text-sm"
+          placeholder="Coach name for this upload (optional)"
+          value={coach} onChange={(e) => setCoach(e.target.value)} />
+
+        <label
+          onDragOver={(e) => { e.preventDefault(); setDragging(true); }}
+          onDragLeave={() => setDragging(false)}
+          onDrop={(e) => {
+            e.preventDefault(); setDragging(false);
+            uploadFiles(Array.from(e.dataTransfer.files));
+          }}
+          className={cn(
+            "mt-3 flex cursor-pointer flex-col items-center gap-1 rounded-xl border-2 border-dashed border-border bg-paper/40 px-6 py-9 text-center",
+            dragging && "border-primary bg-primary/5",
+          )}>
+          <Upload className="size-5 text-muted-foreground" />
+          <span className="text-sm font-medium">
+            {busy ? "Uploading…" : `Drop audio here for ${SLOTS.find((s) => s.value === slot)?.label}`}
+          </span>
+          <span className="text-xs text-muted-foreground">
+            .mp3, .m4a or .wav — several at once is fine. Length is read automatically.
+          </span>
+          <input type="file" multiple accept="audio/*,.mp3,.m4a,.wav,.aac,.ogg" className="hidden"
+            onChange={(e) => { uploadFiles(Array.from(e.target.files ?? [])); e.target.value = ""; }} />
+        </label>
       </section>
 
       <section>
-        <h2 className="text-sm font-medium text-muted-foreground mb-2">Tracks</h2>
+        <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+          <h2 className="text-sm font-medium text-muted-foreground">
+            Meditations available ({rows.length})
+          </h2>
+          <select value={filter} onChange={(e) => setFilter(e.target.value as Slot | "all")}
+            className="rounded-lg border border-border bg-paper/60 px-2 py-1.5 text-sm">
+            <option value="all">All slots</option>
+            {SLOTS.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
+          </select>
+        </div>
+
         <ul className="space-y-2">
-          {rows.map((r) => (
-            <li key={r.id} className="soft-card p-4 flex items-center justify-between gap-3">
-              <div className="min-w-0">
-                <div className="font-medium truncate">{r.title}</div>
-                <div className="text-xs text-muted-foreground">
-                  {r.coach_name ?? "—"} · {Math.round(r.duration_seconds / 60)} min · {r.time_of_day}
+          {visible.map((r) => (
+            <li key={r.id} className="soft-card p-4 flex flex-wrap items-center justify-between gap-3">
+              <div className="min-w-0 flex-1">
+                <input defaultValue={r.title} onBlur={(e) => rename(r.id, e.target.value)}
+                  className="w-full rounded-lg border border-transparent bg-transparent px-2 py-1 font-medium hover:border-border focus:border-border" />
+                <div className="px-2 text-xs text-muted-foreground">
+                  {r.coach_name ?? "—"} · {Math.round(r.duration_seconds / 60)} min
                 </div>
               </div>
+
+              <select value={r.time_of_day}
+                onChange={(e) => changeSlot.mutate({ id: r.id, next: e.target.value as Slot })}
+                className="rounded-lg border border-border bg-paper/60 px-2 py-1.5 text-sm">
+                {SLOTS.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
+              </select>
+
               <div className="flex items-center gap-2 shrink-0">
                 <button onClick={() => togglePublish.mutate(r)}
                   className="inline-flex items-center gap-1 rounded-full border border-border px-3 py-1 text-xs">
@@ -171,7 +263,11 @@ function MeditationsAdmin() {
               </div>
             </li>
           ))}
-          {rows.length === 0 && <div className="soft-card p-6 text-sm text-muted-foreground">No tracks yet.</div>}
+          {visible.length === 0 && (
+            <div className="soft-card p-6 text-sm text-muted-foreground">
+              Nothing here yet. Drop audio above and it appears for students right away.
+            </div>
+          )}
         </ul>
       </section>
     </div>
