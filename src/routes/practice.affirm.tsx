@@ -6,6 +6,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { Button } from "@/components/ui/button";
 import { Check, Shuffle, Play, Pause } from "lucide-react";
 
+import { cn } from "@/lib/utils";
 import { Scene } from "@/components/scene";
 import { Celebrate } from "@/components/celebrate";
 
@@ -101,6 +102,7 @@ function Affirm() {
   return (
     <div className="space-y-6">
       <Celebrate scene="affirm" open={celebrate} onClose={() => setCelebrate(false)} intensity="soft" />
+      <BackgroundMusic scope="affirm" />
       <div className="soft-card relative overflow-hidden bg-gradient-to-br from-paper via-card to-sage-soft/40 p-8 md:p-12">
         <div className="flex items-start justify-between gap-4">
           <div className="text-xs uppercase tracking-widest text-muted-foreground">Today's line</div>
@@ -146,6 +148,78 @@ function Affirm() {
       <p className="text-center text-xs text-muted-foreground">
         Say it slowly. Even if you don't believe it yet.
       </p>
+    </div>
+  );
+}
+
+/* ---------------- Background music (inline) ---------------- */
+type BgTrack = { id: string; title: string; audio_url: string; is_default: boolean };
+
+function BackgroundMusic({ scope }: { scope: "meditate" | "breathe" | "affirm" }) {
+  const [chosen, setChosen] = useState<string>("");
+  const [muted, setMuted] = useState(false);
+  const [bgSrc, setBgSrc] = useState("");
+  const bgRef = useRef<HTMLAudioElement | null>(null);
+
+  const { data: bgTracks = [] } = useQuery({
+    queryKey: ["background-tracks", scope],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("background_tracks")
+        .select("id,title,audio_url,is_default")
+        .eq("is_published", true)
+        .in("use_for", [scope, "both"])
+        .order("is_default", { ascending: false });
+      if (error) throw error;
+      return (data ?? []) as BgTrack[];
+    },
+  });
+
+  const activeBg = bgTracks.find((t) => t.id === chosen) ?? bgTracks[0] ?? null;
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      if (!activeBg) { setBgSrc(""); return; }
+      let url = activeBg.audio_url;
+      if (!/^https?:\/\//i.test(url)) {
+        const { data } = await supabase.storage
+          .from("meditation-audio")
+          .createSignedUrl(url, 60 * 60);
+        url = data?.signedUrl ?? "";
+      }
+      if (!cancelled) setBgSrc(url);
+    })();
+    return () => { cancelled = true; };
+  }, [activeBg?.id]);
+
+  useEffect(() => {
+    const el = bgRef.current;
+    if (!el) return;
+    el.volume = 0.25;                 // sits under the voice, never over it
+    if (muted || !bgSrc) { el.pause(); return; }
+    el.play().catch(() => {});        // browsers may block until first tap
+  }, [bgSrc, muted]);
+
+  if (bgTracks.length === 0) return null;
+
+  return (
+    <div className="flex items-center gap-2 text-xs text-muted-foreground">
+      <audio ref={bgRef} src={bgSrc} loop preload="none" />
+      <span>Music</span>
+      <select
+        value={activeBg?.id ?? ""}
+        onChange={(e) => { setChosen(e.target.value); setMuted(false); }}
+        className="rounded-lg border border-border bg-paper/60 px-2 py-1 text-xs max-w-[10rem]"
+      >
+        {bgTracks.map((t) => <option key={t.id} value={t.id}>{t.title}</option>)}
+      </select>
+      <button
+        onClick={() => setMuted((m) => !m)}
+        className={cn("rounded-full border border-border px-2 py-1", muted && "bg-secondary")}
+      >
+        {muted ? "Unmute" : "Mute"}
+      </button>
     </div>
   );
 }
