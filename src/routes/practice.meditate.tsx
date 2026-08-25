@@ -9,6 +9,7 @@ import { Play, Pause, RotateCcw, Volume2, Sunrise, Sun, Sunset, Moon } from "luc
 import { cn } from "@/lib/utils";
 import { Scene } from "@/components/scene";
 import { Celebrate } from "@/components/celebrate";
+import { BackgroundMusic } from "@/components/background-music";
 
 type Slot = "morning" | "afternoon" | "evening" | "night" | "any";
 
@@ -21,7 +22,7 @@ type Track = {
 /** The four times of day a student can be in. "Any" plays in all of them. */
 const TABS = [
   { value: "morning", label: "Morning", Icon: Sunrise, heading: "Begin the day" },
-  { value: "afternoon", label: "Afternoon", Icon: Sun, heading: "Reset between blocks" },
+  { value: "afternoon", label: "Relax", Icon: Sun, heading: "Relax between study blocks" },
   { value: "evening", label: "Evening", Icon: Sunset, heading: "Wind down" },
   { value: "night", label: "Night", Icon: Moon, heading: "Settle before sleep" },
 ] as const;
@@ -125,6 +126,8 @@ function Meditate() {
           </button>
         ))}
       </div>
+
+      <BackgroundMusic scope="meditate" />
 
       {!active && (
         <div className="soft-card grid place-items-center p-6">
