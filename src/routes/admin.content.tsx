@@ -380,14 +380,34 @@ function AffirmationsAdmin() {
   });
   const [text, setText] = useState("");
   const [category, setCategory] = useState("calm");
+  const [file, setFile] = useState<File | null>(null);
+  const [busy, setBusy] = useState(false);
 
+  /** Text is required; a recording is optional and uploaded with it. */
   const add = useMutation({
     mutationFn: async () => {
       if (!text.trim()) return;
-      const { error } = await supabase.from("affirmations").insert({ body: text.trim(), category, is_published: true });
+      let path: string | null = null;
+      if (file) {
+        setBusy(true);
+        const key = `affirmations/${Date.now()}-${file.name.replace(/[^\w.\-]+/g, "_")}`;
+        const { error: upErr } = await supabase.storage.from("meditation-audio")
+          .upload(key, file, { contentType: file.type || "audio/mpeg", upsert: false });
+        if (upErr) { setBusy(false); throw upErr; }
+        path = key;
+      }
+      const { error } = await supabase.from("affirmations").insert({
+        body: text.trim(), category, is_published: true, audio_url: path,
+      });
+      setBusy(false);
       if (error) throw error;
     },
-    onSuccess: () => { setText(""); qc.invalidateQueries({ queryKey: ["admin-affirmations"] }); },
+    onSuccess: () => {
+      setText(""); setFile(null);
+      qc.invalidateQueries({ queryKey: ["admin-affirmations"] });
+      qc.invalidateQueries({ queryKey: ["affirmations"] });
+    },
+    onError: (e: any) => { setBusy(false); toast.error(e?.message ?? "Couldn't save that."); },
   });
 
   const remove = useMutation({
@@ -405,7 +425,19 @@ function AffirmationsAdmin() {
           <input className="rounded-lg border border-border bg-paper/60 px-3 py-2 text-sm"
             placeholder="Category" value={category} onChange={(e) => setCategory(e.target.value)} />
         </div>
-        <div className="mt-3"><Button onClick={() => add.mutate()} className="rounded-full">Add</Button></div>
+        <label className="mt-3 flex cursor-pointer items-center gap-2 rounded-lg border border-dashed border-border bg-paper/40 px-3 py-3 text-sm">
+          <Upload className="size-4" />
+          <span className="text-muted-foreground">
+            {file ? file.name : "Add an MP3 recording for this line (optional)"}
+          </span>
+          <input type="file" accept="audio/*,.mp3,.m4a,.wav" className="hidden"
+            onChange={(e) => setFile(e.target.files?.[0] ?? null)} />
+        </label>
+        <div className="mt-3">
+          <Button onClick={() => add.mutate()} disabled={busy || add.isPending} className="rounded-full">
+            {busy ? "Uploading…" : "Add"}
+          </Button>
+        </div>
       </section>
 
       <ul className="space-y-2">
@@ -555,14 +587,15 @@ function AffirmationVoice({ row }: { row: Aff }) {
 /* ---------------- Background music ---------------- */
 type BgTrack = {
   id: string; title: string; audio_url: string;
-  use_for: "meditate" | "breathe" | "both";
+  use_for: "meditate" | "breathe" | "affirm" | "both";
   is_default: boolean; is_published: boolean;
 };
 
 const USE_FOR = [
   { value: "meditate", label: "Meditations" },
   { value: "breathe", label: "Breathing" },
-  { value: "both", label: "Both" },
+  { value: "affirm", label: "Affirmations" },
+  { value: "both", label: "Everywhere" },
 ] as const;
 
 function MusicAdmin() {
