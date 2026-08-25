@@ -119,14 +119,8 @@ function Meditate() {
 
       <div className="inline-flex flex-wrap gap-1 rounded-full bg-secondary p-1 text-sm">
         {TABS.map(({ value, label, Icon }) => (
-          <button
-            key={value}
-            onClick={() => setTab(value)}
-            className={cn(
-              "inline-flex items-center gap-1.5 rounded-full px-4 py-1.5",
-              tab === value && "bg-card shadow-sm",
-            )}
-          >
+          <button key={value} onClick={() => setTab(value)}
+            className={cn("inline-flex items-center gap-1.5 rounded-full px-4 py-1.5", tab === value && "bg-card shadow-sm")}>
             <Icon className="size-4" /> {label}
           </button>
         ))}
@@ -151,3 +145,73 @@ function Meditate() {
                 {active.description && <p className="mt-2 max-w-md text-sm text-muted-foreground">{active.description}</p>}
               </div>
               <Scene kind="meditate" size={96} />
+            </div>
+
+            <audio
+              ref={audioRef}
+              src={signedUrl}
+              onLoadedMetadata={(e) => setDur(e.currentTarget.duration || active.duration_seconds)}
+              onTimeUpdate={(e) => setPos(e.currentTarget.currentTime)}
+              onEnded={onEnded}
+              preload="metadata"
+            />
+
+            <div className="mt-6">
+              <TouchSlider
+                min={0} max={Math.max(dur, 1)} step={1}
+                value={Math.min(pos, Math.max(dur, 1))}
+                onChange={(v) => { if (audioRef.current) audioRef.current.currentTime = v; setPos(v); }}
+                ariaLabel="Seek"
+              />
+              <div className="mt-1 flex justify-between text-[11px] text-muted-foreground">
+                <span>{fmt(pos)}</span><span>{fmt(dur || active.duration_seconds)}</span>
+              </div>
+            </div>
+
+            <div className="mt-5 flex items-center gap-3">
+              <Button onClick={toggle} size="lg" className="rounded-full">
+                {playing ? <Pause className="size-5" /> : <Play className="size-5" />}
+                <span className="ml-2">{playing ? "Pause" : "Play"}</span>
+              </Button>
+              <Button variant="outline" size="icon" onClick={reset} className="rounded-full">
+                <RotateCcw className="size-4" />
+              </Button>
+              <div className="ml-auto flex items-center gap-2 text-muted-foreground w-40">
+                <Volume2 className="size-4 shrink-0" />
+                <TouchSlider min={0} max={100} step={1} value={vol} onChange={setVol} ariaLabel="Volume" />
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <div className="space-y-2">
+        <h3 className="text-sm font-medium text-muted-foreground">{heading}</h3>
+        {isLoading && <div className="text-sm text-muted-foreground">Loading…</div>}
+        {!isLoading && list.length === 0 && (
+          <div className="soft-card p-6 text-sm text-muted-foreground">
+            No tracks for this time yet. Ask your coach to publish one.
+          </div>
+        )}
+        <ul className="space-y-2">
+          {list.map((t) => (
+            <li key={t.id}>
+              <button onClick={() => pick(t)} className={cn(
+                "w-full soft-card p-4 text-left transition-colors hover:bg-secondary/50",
+                active?.id === t.id && "ring-2 ring-primary/30"
+              )}>
+                <div className="flex items-baseline justify-between gap-3">
+                  <div>
+                    <div className="font-medium">{t.title}</div>
+                    <div className="mt-0.5 text-xs text-muted-foreground">{t.coach_name} · {Math.round(t.duration_seconds / 60)} min</div>
+                  </div>
+                  <Play className="size-4 text-muted-foreground" />
+                </div>
+              </button>
+            </li>
+          ))}
+        </ul>
+      </div>
+    </div>
+  );
+}
