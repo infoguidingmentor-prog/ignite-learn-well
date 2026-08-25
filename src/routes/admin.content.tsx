@@ -371,10 +371,11 @@ type Aff = { id: string; body: string; category: string | null; is_published: bo
 
 function AffirmationsAdmin() {
   const qc = useQueryClient();
-  const { data: rows = [] } = useQuery({
+  const { data: rows = [], error: loadError } = useQuery({
     queryKey: ["admin-affirmations"],
     queryFn: async () => {
-      const { data } = await supabase.from("affirmations").select("id,body,category,is_published,audio_url").order("category");
+      const { data, error } = await supabase.from("affirmations").select("*").order("category");
+      if (error) throw error;
       return (data ?? []) as Aff[];
     },
   });
@@ -386,7 +387,7 @@ function AffirmationsAdmin() {
   /** Text is required; a recording is optional and uploaded with it. */
   const add = useMutation({
     mutationFn: async () => {
-      if (!text.trim()) return;
+      if (!text.trim()) throw new Error("Write the affirmation text first.");
       let path: string | null = null;
       if (file) {
         setBusy(true);
@@ -421,7 +422,7 @@ function AffirmationsAdmin() {
         <div className="text-xs uppercase tracking-widest text-muted-foreground mb-3">New affirmation</div>
         <div className="grid gap-2 md:grid-cols-4">
           <input className="rounded-lg border border-border bg-paper/60 px-3 py-2 text-sm md:col-span-3"
-            placeholder="I am steady in the effort I chose." value={text} onChange={(e) => setText(e.target.value)} />
+            placeholder="Affirmation text (required) — e.g. I am steady in the effort I chose." value={text} onChange={(e) => setText(e.target.value)} />
           <input className="rounded-lg border border-border bg-paper/60 px-3 py-2 text-sm"
             placeholder="Category" value={category} onChange={(e) => setCategory(e.target.value)} />
         </div>
@@ -433,10 +434,19 @@ function AffirmationsAdmin() {
           <input type="file" accept="audio/*,.mp3,.m4a,.wav" className="hidden"
             onChange={(e) => setFile(e.target.files?.[0] ?? null)} />
         </label>
-        <div className="mt-3">
-          <Button onClick={() => add.mutate()} disabled={busy || add.isPending} className="rounded-full">
+        <div className="mt-3 flex items-center gap-3">
+          <Button
+            onClick={() => add.mutate()}
+            disabled={!text.trim() || busy || add.isPending}
+            className="rounded-full"
+          >
             {busy ? "Uploading…" : "Add"}
           </Button>
+          {!text.trim() && (
+            <span className="text-xs text-muted-foreground">
+              Type the affirmation above to enable this.
+            </span>
+          )}
         </div>
       </section>
 
@@ -453,7 +463,14 @@ function AffirmationsAdmin() {
             </button>
           </li>
         ))}
-        {rows.length === 0 && <div className="soft-card p-6 text-sm text-muted-foreground">No affirmations yet.</div>}
+        {loadError && (
+          <div className="soft-card p-6 text-sm">
+            Couldn't load affirmations: {(loadError as any)?.message ?? "unknown error"}
+          </div>
+        )}
+        {!loadError && rows.length === 0 && (
+          <div className="soft-card p-6 text-sm text-muted-foreground">No affirmations yet.</div>
+        )}
       </ul>
     </div>
   );
