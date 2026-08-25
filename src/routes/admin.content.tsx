@@ -16,7 +16,7 @@ export const Route = createFileRoute("/admin/content")({
 });
 
 
-type Tab = "meditations" | "ambient" | "affirmations" | "sessions";
+type Tab = "meditations" | "ambient" | "music" | "affirmations" | "sessions";
 
 function Content() {
   const [tab, setTab] = useState<Tab>("meditations");
@@ -31,7 +31,7 @@ function Content() {
       </header>
 
       <div className="inline-flex flex-wrap gap-1 rounded-full bg-secondary p-1 text-sm">
-        {(["meditations", "ambient", "affirmations", "sessions"] as Tab[]).map((t) => (
+        {(["meditations", "ambient", "music", "affirmations", "sessions"] as Tab[]).map((t) => (
           <button key={t} onClick={() => setTab(t)}
             className={cn("rounded-full px-4 py-1.5 capitalize", tab === t && "bg-card shadow-sm")}>
             {t}
@@ -41,6 +41,7 @@ function Content() {
 
       {tab === "meditations" && <MeditationsAdmin />}
       {tab === "ambient" && <AmbientAdmin />}
+      {tab === "music" && <MusicAdmin />}
       {tab === "affirmations" && <AffirmationsAdmin />}
       {tab === "sessions" && <SessionsAdmin />}
     </div>
@@ -363,14 +364,14 @@ function AmbientAdmin() {
 }
 
 /* ---------------- Affirmations ---------------- */
-type Aff = { id: string; body: string; category: string | null; is_published: boolean };
+type Aff = { id: string; body: string; category: string | null; is_published: boolean; audio_url: string | null };
 
 function AffirmationsAdmin() {
   const qc = useQueryClient();
   const { data: rows = [] } = useQuery({
     queryKey: ["admin-affirmations"],
     queryFn: async () => {
-      const { data } = await supabase.from("affirmations").select("id,body,category,is_published").order("category");
+      const { data } = await supabase.from("affirmations").select("id,body,category,is_published,audio_url").order("category");
       return (data ?? []) as Aff[];
     },
   });
@@ -406,8 +407,12 @@ function AffirmationsAdmin() {
 
       <ul className="space-y-2">
         {rows.map((r) => (
-          <li key={r.id} className="soft-card p-4 flex items-center justify-between gap-3">
-            <div><div className="text-sm">{r.body}</div><div className="text-[11px] text-muted-foreground">{r.category ?? "—"}</div></div>
+          <li key={r.id} className="soft-card p-4 flex flex-wrap items-center justify-between gap-3">
+            <div className="min-w-0 flex-1">
+              <div className="text-sm">{r.body}</div>
+              <div className="text-[11px] text-muted-foreground">{r.category ?? "—"}</div>
+            </div>
+            <AffirmationVoice row={r} />
             <button onClick={() => remove.mutate(r.id)} className="text-muted-foreground hover:text-foreground">
               <Trash2 className="size-4" />
             </button>
@@ -486,6 +491,221 @@ function SessionsAdmin() {
           </li>
         ))}
         {rows.length === 0 && <div className="soft-card p-6 text-sm text-muted-foreground">No sessions scheduled.</div>}
+      </ul>
+    </div>
+  );
+}
+
+
+/** Attach (or replace) a spoken recording for one affirmation. */
+function AffirmationVoice({ row }: { row: Aff }) {
+  const qc = useQueryClient();
+  const [busy, setBusy] = useState(false);
+
+  const upload = async (file: File | null) => {
+    if (!file) return;
+    if (!file.type.startsWith("audio/") && !/\.(mp3|m4a|wav|aac|ogg)$/i.test(file.name)) {
+      toast.error("Affirmation recordings are audio files.");
+      return;
+    }
+    setBusy(true);
+    try {
+      const path = `affirmations/${Date.now()}-${file.name.replace(/[^\w.\-]+/g, "_")}`;
+      const { error: upErr } = await supabase.storage.from("meditation-audio")
+        .upload(path, file, { contentType: file.type || "audio/mpeg", upsert: false });
+      if (upErr) throw upErr;
+      const { error } = await supabase.from("affirmations").update({ audio_url: path }).eq("id", row.id);
+      if (error) throw error;
+      toast.success("Recording attached.");
+      qc.invalidateQueries({ queryKey: ["admin-affirmations"] });
+      qc.invalidateQueries({ queryKey: ["affirmations"] });
+    } catch (e: any) {
+      toast.error(e?.message ?? "Upload failed.");
+    } finally { setBusy(false); }
+  };
+
+  const clear = async () => {
+    if (row.audio_url && !/^https?:\/\//i.test(row.audio_url)) {
+      await supabase.storage.from("meditation-audio").remove([row.audio_url]);
+    }
+    await supabase.from("affirmations").update({ audio_url: null }).eq("id", row.id);
+    qc.invalidateQueries({ queryKey: ["admin-affirmations"] });
+    qc.invalidateQueries({ queryKey: ["affirmations"] });
+  };
+
+  return (
+    <div className="flex items-center gap-2 shrink-0">
+      <label className="cursor-pointer rounded-full border border-border px-3 py-1 text-xs hover:bg-secondary">
+        {busy ? "Uploading…" : row.audio_url ? "Replace voice" : "Add voice"}
+        <input type="file" accept="audio/*,.mp3,.m4a,.wav" className="hidden"
+          onChange={(e) => { upload(e.target.files?.[0] ?? null); e.target.value = ""; }} />
+      </label>
+      {row.audio_url && (
+        <button onClick={clear} className="text-[11px] text-muted-foreground hover:text-foreground underline">
+          remove
+        </button>
+      )}
+    </div>
+  );
+}
+
+/* ---------------- Background music ---------------- */
+type BgTrack = {
+  id: string; title: string; audio_url: string;
+  use_for: "meditate" | "breathe" | "both";
+  is_default: boolean; is_published: boolean;
+};
+
+const USE_FOR = [
+  { value: "meditate", label: "Meditations" },
+  { value: "breathe", label: "Breathing" },
+  { value: "both", label: "Both" },
+] as const;
+
+function MusicAdmin() {
+  const qc = useQueryClient();
+  const { data: rows = [] } = useQuery({
+    queryKey: ["admin-background"],
+    queryFn: async () => {
+      const { data } = await supabase.from("background_tracks")
+        .select("id,title,audio_url,use_for,is_default,is_published")
+        .order("is_default", { ascending: false });
+      return (data ?? []) as BgTrack[];
+    },
+  });
+
+  const [useFor, setUseFor] = useState<BgTrack["use_for"]>("both");
+  const [dragging, setDragging] = useState(false);
+  const [busy, setBusy] = useState(false);
+
+  const refresh = () => {
+    qc.invalidateQueries({ queryKey: ["admin-background"] });
+    qc.invalidateQueries({ queryKey: ["background-tracks"] });
+  };
+
+  const uploadFiles = async (files: File[]) => {
+    const audio = files.filter((f) =>
+      f.type.startsWith("audio/") || /\.(mp3|m4a|wav|aac|ogg)$/i.test(f.name));
+    if (files.length && !audio.length) {
+      toast.error("Background music must be an audio file.");
+      return;
+    }
+    setBusy(true);
+    for (const file of audio) {
+      try {
+        const path = `background/${Date.now()}-${file.name.replace(/[^\w.\-]+/g, "_")}`;
+        const { error: upErr } = await supabase.storage.from("meditation-audio")
+          .upload(path, file, { contentType: file.type || "audio/mpeg", upsert: false });
+        if (upErr) throw upErr;
+        const { error } = await supabase.from("background_tracks").insert({
+          title: file.name.replace(/\.[^.]+$/, "").replace(/[_-]+/g, " ").trim(),
+          audio_url: path, use_for: useFor,
+          is_default: false, is_published: true,
+        });
+        if (error) throw error;
+      } catch (e: any) {
+        toast.error(`${file.name}: ${e?.message ?? "upload failed"}`);
+      }
+    }
+    setBusy(false);
+    refresh();
+  };
+
+  /** Exactly one default per scope — the DB trigger clears the previous one. */
+  const setDefault = useMutation({
+    mutationFn: async (r: BgTrack) => {
+      const { error } = await supabase.from("background_tracks")
+        .update({ is_default: true }).eq("id", r.id);
+      if (error) throw error;
+    },
+    onSuccess: () => { toast.success("This plays by default now."); refresh(); },
+    onError: (e: any) => toast.error(e?.message ?? "Couldn't set default."),
+  });
+
+  const changeUse = useMutation({
+    mutationFn: async ({ id, next }: { id: string; next: BgTrack["use_for"] }) => {
+      const { error } = await supabase.from("background_tracks")
+        .update({ use_for: next }).eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: refresh,
+  });
+
+  const remove = useMutation({
+    mutationFn: async (r: BgTrack) => {
+      if (r.audio_url && !/^https?:\/\//i.test(r.audio_url)) {
+        await supabase.storage.from("meditation-audio").remove([r.audio_url]);
+      }
+      await supabase.from("background_tracks").delete().eq("id", r.id);
+    },
+    onSuccess: refresh,
+  });
+
+  return (
+    <div className="space-y-6">
+      <section className="soft-card p-5">
+        <div className="text-xs uppercase tracking-widest text-muted-foreground mb-1">Background music</div>
+        <p className="mb-3 text-sm text-muted-foreground">
+          Plays quietly under meditations and breathing. Whatever you mark as default starts on its own —
+          students can switch it or mute it.
+        </p>
+
+        <div className="flex flex-wrap gap-2">
+          {USE_FOR.map((u) => (
+            <button key={u.value} onClick={() => setUseFor(u.value)}
+              className={cn("rounded-full border border-border px-4 py-1.5 text-sm",
+                useFor === u.value && "bg-primary text-primary-foreground border-primary")}>
+              {u.label}
+            </button>
+          ))}
+        </div>
+
+        <label
+          onDragOver={(e) => { e.preventDefault(); setDragging(true); }}
+          onDragLeave={() => setDragging(false)}
+          onDrop={(e) => { e.preventDefault(); setDragging(false); uploadFiles(Array.from(e.dataTransfer.files)); }}
+          className={cn(
+            "mt-3 flex cursor-pointer flex-col items-center gap-1 rounded-xl border-2 border-dashed border-border bg-paper/40 px-6 py-8 text-center",
+            dragging && "border-primary bg-primary/5")}>
+          <Upload className="size-5 text-muted-foreground" />
+          <span className="text-sm font-medium">
+            {busy ? "Uploading…" : `Drop music here for ${USE_FOR.find((u) => u.value === useFor)?.label}`}
+          </span>
+          <span className="text-xs text-muted-foreground">Long, loopable tracks work best.</span>
+          <input type="file" multiple accept="audio/*,.mp3,.m4a,.wav" className="hidden"
+            onChange={(e) => { uploadFiles(Array.from(e.target.files ?? [])); e.target.value = ""; }} />
+        </label>
+      </section>
+
+      <ul className="space-y-2">
+        {rows.map((r) => (
+          <li key={r.id} className="soft-card p-4 flex flex-wrap items-center justify-between gap-3">
+            <div className="min-w-0 flex-1">
+              <div className="font-medium truncate">{r.title}</div>
+              {r.is_default && <div className="text-[11px] text-primary">Plays by default</div>}
+            </div>
+            <select value={r.use_for}
+              onChange={(e) => changeUse.mutate({ id: r.id, next: e.target.value as BgTrack["use_for"] })}
+              className="rounded-lg border border-border bg-paper/60 px-2 py-1.5 text-sm">
+              {USE_FOR.map((u) => <option key={u.value} value={u.value}>{u.label}</option>)}
+            </select>
+            <div className="flex items-center gap-2 shrink-0">
+              <button onClick={() => setDefault.mutate(r)} disabled={r.is_default}
+                className="inline-flex items-center gap-1 rounded-full border border-border px-3 py-1 text-xs disabled:opacity-40">
+                {r.is_default ? <CheckCircle2 className="size-3.5 text-primary" /> : <Circle className="size-3.5" />}
+                Default
+              </button>
+              <button onClick={() => remove.mutate(r)} className="text-muted-foreground hover:text-foreground">
+                <Trash2 className="size-4" />
+              </button>
+            </div>
+          </li>
+        ))}
+        {rows.length === 0 && (
+          <div className="soft-card p-6 text-sm text-muted-foreground">
+            No background music yet. Without one, meditations play with voice only.
+          </div>
+        )}
       </ul>
     </div>
   );
