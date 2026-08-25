@@ -13,10 +13,10 @@ export const Route = createFileRoute("/admin/people")({
   component: () => <><People /></>,
 });
 
-type Tab = "users" | "mentors" | "coaches" | "assign";
+type Tab = "approvals" | "users" | "mentors" | "coaches" | "assign";
 
 function People() {
-  const [tab, setTab] = useState<Tab>("users");
+  const [tab, setTab] = useState<Tab>("approvals");
   return (
     <div className="space-y-6">
       <header>
@@ -26,7 +26,7 @@ function People() {
       </header>
 
       <div className="inline-flex flex-wrap gap-1 rounded-full bg-secondary p-1 text-sm">
-        {(["users","mentors","coaches","assign"] as Tab[]).map((t) => (
+        {(["approvals","users","mentors","coaches","assign"] as Tab[]).map((t) => (
           <button key={t} onClick={() => setTab(t)}
             className={`rounded-full px-4 py-1.5 capitalize ${tab === t ? "bg-card shadow-sm" : ""}`}>
             {t === "assign" ? "Assign role by email" : t}
@@ -34,11 +34,107 @@ function People() {
         ))}
       </div>
 
+      {tab === "approvals" && <Approvals />}
       {tab === "users" && <UserManager />}
       {tab === "assign" && <AssignRole />}
       {tab === "mentors" && <MentorsPanel />}
       {tab === "coaches" && <CoachesPanel />}
     </div>
+  );
+}
+
+/* ---------------- Pending mentor & coach approvals ---------------- */
+type RoleRequest = {
+  id: string;
+  requested_role: "mentor" | "coach";
+  first_name: string | null;
+  last_name: string | null;
+  email: string | null;
+  phone: string | null;
+  created_at: string;
+};
+
+function Approvals() {
+  const qc = useQueryClient();
+
+  const { data: rows = [], isLoading } = useQuery({
+    queryKey: ["role-requests"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("role_requests")
+        .select("id,requested_role,first_name,last_name,email,phone,created_at")
+        .eq("status", "pending")
+        .order("created_at", { ascending: true });
+      if (error) throw error;
+      return (data ?? []) as RoleRequest[];
+    },
+  });
+
+  /** Approval is the only path to a mentor or coach role — enforced in the DB. */
+  const review = useMutation({
+    mutationFn: async ({ id, approve }: { id: string; approve: boolean }) => {
+      const { error } = await (supabase.rpc as any)("approve_role_request", {
+        _request_id: id,
+        _approve: approve,
+      });
+      if (error) throw error;
+    },
+    onSuccess: (_d, v) => {
+      toast.success(v.approve ? "Approved. Their portal is open." : "Request rejected.");
+      qc.invalidateQueries({ queryKey: ["role-requests"] });
+      qc.invalidateQueries({ queryKey: ["admin-mentors"] });
+      qc.invalidateQueries({ queryKey: ["admin-coaches"] });
+    },
+    onError: (e: any) => toast.error(e?.message ?? "Couldn't save that."),
+  });
+
+  if (isLoading) return <div className="text-sm text-muted-foreground">Loading requests…</div>;
+
+  if (rows.length === 0) {
+    return (
+      <div className="soft-card p-6 text-sm text-muted-foreground">
+        Nothing waiting. Mentors and coaches who sign in with Google appear here until you approve them.
+      </div>
+    );
+  }
+
+  return (
+    <ul className="space-y-2">
+      {rows.map((r) => (
+        <li key={r.id} className="soft-card p-4 flex flex-wrap items-center justify-between gap-3">
+          <div className="min-w-0">
+            <div className="font-medium">
+              {[r.first_name, r.last_name].filter(Boolean).join(" ") || "Unnamed"}
+              <span className="ml-2 rounded-full bg-secondary px-2 py-0.5 text-[11px] capitalize">
+                {r.requested_role}
+              </span>
+            </div>
+            <div className="text-xs text-muted-foreground">
+              {r.email ?? "—"}{r.phone ? ` · ${r.phone}` : ""} · {new Date(r.created_at).toLocaleDateString()}
+            </div>
+          </div>
+          <div className="flex items-center gap-2 shrink-0">
+            <Button
+              onClick={() => review.mutate({ id: r.id, approve: true })}
+              disabled={review.isPending}
+              className="rounded-full"
+              size="sm"
+            >
+              Approve
+            </Button>
+            <Button
+              onClick={() => review.mutate({ id: r.id, approve: false })}
+              disabled={review.isPending}
+              variant="outline"
+              className="rounded-full"
+              size="sm"
+            >
+              Reject
+            </Button>
+          </div>
+        </li>
+      ))}
+    </ul>
   );
 }
 
@@ -52,11 +148,6 @@ function AssignRole() {
     if (!email.trim()) return;
     setBusy(true);
     try {
-      // Look up user via profiles.full_name/email — but profiles has no email; use auth via a helper RPC?
-      // Simplest: query auth.users is blocked. We rely on the user having signed in at least once (profiles row exists).
-      // We look up by matching a profile with that user via a small helper: fetch profiles where email exists in metadata is not available.
-      // Instead: we require the user to have signed up first, then admin can assign via user_id lookup on user_roles.
-      // Approach: fetch from a public view we ship as an RPC? Not yet. So expose a lookup RPC.
       const { data: uid, error } = await (supabase.rpc as any)("find_user_id_by_email", { _email: email.trim().toLowerCase() });
       if (error) throw error;
       if (!uid) { toast.error("No user with that email. Ask them to sign up first."); return; }
