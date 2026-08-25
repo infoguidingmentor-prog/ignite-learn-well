@@ -8,14 +8,21 @@ import { Play, Square } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Scene } from "@/components/scene";
 import { toast } from "sonner";
+import { BackgroundMusic } from "@/components/background-music";
 
 export const Route = createFileRoute("/practice/breathe")({ component: Breathe });
 
 type Pattern = "box" | "4-7-8" | "coherent";
+
+/**
+ * Named for what they do, not for their counts — "4-7-8" means nothing to a
+ * student mid-panic. The keys stay the same so existing session rows still
+ * line up.
+ */
 const PATTERNS: Record<Pattern, { label: string; phases: { name: string; sec: number }[]; blurb: string }> = {
-  "box":       { label: "Box (4-4-4-4)", blurb: "For settling.",  phases: [{ name: "Inhale", sec: 4 }, { name: "Hold", sec: 4 }, { name: "Exhale", sec: 4 }, { name: "Hold", sec: 4 }] },
-  "4-7-8":     { label: "4-7-8",          blurb: "For sleep.",     phases: [{ name: "Inhale", sec: 4 }, { name: "Hold", sec: 7 }, { name: "Exhale", sec: 8 }] },
-  "coherent":  { label: "Coherent (5-5)", blurb: "For focus.",     phases: [{ name: "Inhale", sec: 5 }, { name: "Exhale", sec: 5 }] },
+  "box":      { label: "Settle", blurb: "When your chest is tight.", phases: [{ name: "Inhale", sec: 4 }, { name: "Hold", sec: 4 }, { name: "Exhale", sec: 4 }, { name: "Hold", sec: 4 }] },
+  "4-7-8":    { label: "Sleep",  blurb: "For winding down.",         phases: [{ name: "Inhale", sec: 4 }, { name: "Hold", sec: 7 }, { name: "Exhale", sec: 8 }] },
+  "coherent": { label: "Focus",  blurb: "Before a study block.",     phases: [{ name: "Inhale", sec: 5 }, { name: "Exhale", sec: 5 }] },
 };
 
 function Breathe() {
@@ -84,6 +91,8 @@ function Breathe() {
         </div>
         <Scene kind="breathe" size={64} className="shrink-0" />
       </div>
+
+      <BackgroundMusic scope="breathe" />
 
       <div className="soft-card grid place-items-center p-8 md:p-12" style={{ minHeight: 360 }}>
         <div className="relative grid size-64 place-items-center">
