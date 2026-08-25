@@ -15,6 +15,8 @@ export const Route = createFileRoute("/coach-login")({
   component: () => (
     <StaffLogin
       role={["coach", "counsellor"]}
+      requestRole="coach"
+      portalPath="/coach-login"
       kicker="Coach access"
       title="Coach portal"
       blurb="Your assigned students, risk-ranked."
