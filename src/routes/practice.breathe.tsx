@@ -6,7 +6,6 @@ import { useAuth } from "@/hooks/use-auth";
 import { Button } from "@/components/ui/button";
 import { Play, Square } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { Scene } from "@/components/scene";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/practice/breathe")({ component: Breathe });
@@ -77,55 +76,76 @@ function Breathe() {
   // orb scale by phase name
   const scale = phase.name === "Inhale" ? 1 : phase.name === "Exhale" ? 0.55 : phase.name === "Hold" ? (phaseIdx > 1 ? 0.55 : 1) : 0.8;
 
+  const prefersReduced =
+    typeof window !== "undefined" &&
+    window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+
   return (
-    <div className="space-y-6">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex flex-wrap gap-2">
-          {(Object.keys(PATTERNS) as Pattern[]).map((p) => (
-            <button key={p} onClick={() => !running && setPattern(p)} className={cn(
-              "rounded-full px-4 py-1.5 text-sm border border-border",
-              pattern === p ? "bg-primary text-primary-foreground border-primary ring-2 ring-primary/40 shadow-[0_0_0_5px_rgba(0,60,148,0.10)] motion-safe:scale-[1.05]" : "hover:bg-secondary opacity-70"
-            )}>{PATTERNS[p].label}</button>
-          ))}
-        </div>
-        <Scene kind="breathe" size={64} className="shrink-0" />
+    <div className="space-y-5">
+      {/* One quiet row of chrome. Nothing competes with the orb. */}
+      <div className="flex flex-wrap items-center gap-2">
+        {(Object.keys(PATTERNS) as Pattern[]).map((p) => (
+          <button
+            key={p}
+            onClick={() => !running && setPattern(p)}
+            disabled={running}
+            className={cn(
+              "rounded-full px-3.5 py-1.5 text-sm transition-colors disabled:opacity-40",
+              pattern === p
+                ? "bg-primary text-primary-foreground"
+                : "text-muted-foreground hover:bg-secondary",
+            )}
+          >
+            {PATTERNS[p].label}
+          </button>
+        ))}
+        <BackgroundMusic scope="breathe" />
       </div>
 
-      <BackgroundMusic scope="breathe" />
+      <div className="soft-card flex flex-col items-center px-6 py-10">
+        {/* Instruction lives outside the orb, in a fixed slot, so nothing reflows. */}
+        <p className="h-6 text-sm text-muted-foreground">
+          {running ? `${cycles} ${cycles === 1 ? "cycle" : "cycles"}` : cfg.blurb}
+        </p>
 
-      <div className="soft-card grid place-items-center p-8 md:p-12" style={{ minHeight: 360 }}>
-        <div className="relative grid size-64 place-items-center">
+        <div className="relative mt-6 grid size-[260px] place-items-center">
+          {/* Hairline target ring — the orb grows to meet it on the inhale. */}
           <div
-            className="absolute rounded-full bg-gradient-to-br from-sage/40 to-dusk/30"
+            className="absolute rounded-full border border-primary/20"
+            style={{ width: 240, height: 240 }}
+          />
+          <div
+            className="absolute rounded-full bg-gradient-to-br from-sage/35 to-dusk/25"
             style={{
-              width: 220, height: 220,
+              width: 240,
+              height: 240,
               transform: `scale(${scale})`,
-              transition: `transform ${phase.sec}s ease-in-out`,
+              transition: prefersReduced ? "none" : `transform ${phase.sec}s ease-in-out`,
             }}
           />
           <div className="relative text-center">
-            <div className="font-display text-3xl">{running ? phase.name : cfg.blurb}</div>
-            {running && <div className="mt-1 text-sm text-muted-foreground">{Math.ceil(phase.sec - phaseSec)}s</div>}
+            <div className="font-display text-2xl font-normal text-foreground/80">
+              {running ? phase.name : ""}
+            </div>
+            {running && (
+              <div className="mt-1 text-sm tabular-nums text-muted-foreground">
+                {Math.ceil(phase.sec - phaseSec)}
+              </div>
+            )}
           </div>
         </div>
 
-        <div className="mt-6 flex items-center gap-3">
+        <div className="mt-8">
           {!running ? (
-            <Button onClick={start} size="lg" className="rounded-full">
+            <Button onClick={start} size="lg" className="rounded-full px-8">
               <Play className="mr-2 size-4" /> Begin
             </Button>
           ) : (
-            <Button onClick={stop} size="lg" variant="outline" className="rounded-full">
+            <Button onClick={stop} size="lg" variant="ghost" className="rounded-full px-8 text-muted-foreground">
               <Square className="mr-2 size-4" /> Finish
             </Button>
           )}
         </div>
-
-        {running && (
-          <div className="mt-4 text-xs text-muted-foreground">
-            {cycles} cycles · {Math.round(elapsed)}s
-          </div>
-        )}
       </div>
     </div>
   );
@@ -135,8 +155,9 @@ function Breathe() {
 type BgTrack = { id: string; title: string; audio_url: string; is_default: boolean };
 
 function BackgroundMusic({ scope }: { scope: "meditate" | "breathe" }) {
+  // Off until asked for. Autoplay fights whatever the student already has on.
   const [chosen, setChosen] = useState<string>("");
-  const [muted, setMuted] = useState(false);
+  const [playing, setPlaying] = useState(false);
   const [bgSrc, setBgSrc] = useState("");
   const bgRef = useRef<HTMLAudioElement | null>(null);
 
@@ -176,29 +197,34 @@ function BackgroundMusic({ scope }: { scope: "meditate" | "breathe" }) {
     const el = bgRef.current;
     if (!el) return;
     el.volume = 0.25;                 // sits under the voice, never over it
-    if (muted || !bgSrc) { el.pause(); return; }
-    el.play().catch(() => {});        // browsers may block until first tap
-  }, [bgSrc, muted]);
+    if (!playing || !bgSrc) { el.pause(); return; }
+    el.play().catch(() => setPlaying(false));
+  }, [bgSrc, playing]);
+
+  // Leaving the page stops the sound. Nothing keeps looping in a stray tab.
+  useEffect(() => () => { bgRef.current?.pause(); }, []);
 
   if (bgTracks.length === 0) return null;
 
   return (
     <div className="flex items-center gap-2 text-xs text-muted-foreground">
       <audio ref={bgRef} src={bgSrc} loop preload="none" />
-      <span>Music</span>
-      <select
-        value={activeBg?.id ?? ""}
-        onChange={(e) => { setChosen(e.target.value); setMuted(false); }}
-        className="rounded-lg border border-border bg-paper/60 px-2 py-1 text-xs max-w-[10rem]"
-      >
-        {bgTracks.map((t) => <option key={t.id} value={t.id}>{t.title}</option>)}
-      </select>
       <button
-        onClick={() => setMuted((m) => !m)}
-        className={cn("rounded-full border border-border px-2 py-1", muted && "bg-secondary")}
+        onClick={() => setPlaying((p) => !p)}
+        className={cn("rounded-full border border-border px-3 py-1",
+          playing && "bg-primary text-primary-foreground border-primary")}
       >
-        {muted ? "Unmute" : "Mute"}
+        {playing ? "Stop music" : "Play music"}
       </button>
+      {playing && (
+        <select
+          value={activeBg?.id ?? ""}
+          onChange={(e) => setChosen(e.target.value)}
+          className="rounded-lg border border-border bg-paper/60 px-2 py-1 text-xs max-w-[10rem]"
+        >
+          {bgTracks.map((t) => <option key={t.id} value={t.id}>{t.title}</option>)}
+        </select>
+      )}
     </div>
   );
 }
