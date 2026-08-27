@@ -156,8 +156,9 @@ function Affirm() {
 type BgTrack = { id: string; title: string; audio_url: string; is_default: boolean };
 
 function BackgroundMusic({ scope }: { scope: "meditate" | "breathe" | "affirm" }) {
+  // Off until asked for. Autoplay fights whatever the student already has on.
   const [chosen, setChosen] = useState<string>("");
-  const [muted, setMuted] = useState(false);
+  const [playing, setPlaying] = useState(false);
   const [bgSrc, setBgSrc] = useState("");
   const bgRef = useRef<HTMLAudioElement | null>(null);
 
@@ -197,29 +198,34 @@ function BackgroundMusic({ scope }: { scope: "meditate" | "breathe" | "affirm" }
     const el = bgRef.current;
     if (!el) return;
     el.volume = 0.25;                 // sits under the voice, never over it
-    if (muted || !bgSrc) { el.pause(); return; }
-    el.play().catch(() => {});        // browsers may block until first tap
-  }, [bgSrc, muted]);
+    if (!playing || !bgSrc) { el.pause(); return; }
+    el.play().catch(() => setPlaying(false));
+  }, [bgSrc, playing]);
+
+  // Leaving the page stops the sound. Nothing keeps looping in a stray tab.
+  useEffect(() => () => { bgRef.current?.pause(); }, []);
 
   if (bgTracks.length === 0) return null;
 
   return (
     <div className="flex items-center gap-2 text-xs text-muted-foreground">
       <audio ref={bgRef} src={bgSrc} loop preload="none" />
-      <span>Music</span>
-      <select
-        value={activeBg?.id ?? ""}
-        onChange={(e) => { setChosen(e.target.value); setMuted(false); }}
-        className="rounded-lg border border-border bg-paper/60 px-2 py-1 text-xs max-w-[10rem]"
-      >
-        {bgTracks.map((t) => <option key={t.id} value={t.id}>{t.title}</option>)}
-      </select>
       <button
-        onClick={() => setMuted((m) => !m)}
-        className={cn("rounded-full border border-border px-2 py-1", muted && "bg-secondary")}
+        onClick={() => setPlaying((p) => !p)}
+        className={cn("rounded-full border border-border px-3 py-1",
+          playing && "bg-primary text-primary-foreground border-primary")}
       >
-        {muted ? "Unmute" : "Mute"}
+        {playing ? "Stop music" : "Play music"}
       </button>
+      {playing && (
+        <select
+          value={activeBg?.id ?? ""}
+          onChange={(e) => setChosen(e.target.value)}
+          className="rounded-lg border border-border bg-paper/60 px-2 py-1 text-xs max-w-[10rem]"
+        >
+          {bgTracks.map((t) => <option key={t.id} value={t.id}>{t.title}</option>)}
+        </select>
+      )}
     </div>
   );
 }
