@@ -91,6 +91,16 @@ function StudentProfile({ id }: { id: string }) {
     },
   });
 
+  /** Real usage, read straight from the activity tables. */
+  const { data: activity } = useQuery({
+    queryKey: ["student-activity", id],
+    queryFn: async () => {
+      const { data, error } = await (supabase.rpc as any)("student_activity", { _user: id });
+      if (error) throw error;
+      return (data ?? {}) as Record<string, number>;
+    },
+  });
+
   const latest = scores[scores.length - 1] as any;
   const first = scores[0] as any;
 
@@ -100,6 +110,31 @@ function StudentProfile({ id }: { id: string }) {
         <h2 className="font-display text-2xl">{profile?.full_name ?? "Student"}</h2>
         <div className="text-xs text-muted-foreground">{profile?.exam ?? "—"} · target {profile?.target_year ?? "—"}</div>
       </div>
+
+      <section>
+        <h3 className="text-xs uppercase tracking-widest text-muted-foreground mb-2">Activity</h3>
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+          {([
+            ["Meditations", activity?.meditations,
+              activity?.meditation_seconds ? `${Math.round((activity.meditation_seconds as number) / 60)} min listened` : null],
+            ["Focus sessions", activity?.focus_sessions,
+              activity?.focus_minutes ? `${activity.focus_minutes} min focused` : null],
+            ["Breathing", activity?.breathing,
+              activity?.breathing_seconds ? `${Math.round((activity.breathing_seconds as number) / 60)} min` : null],
+            ["Affirmations", activity?.affirmations, null],
+            ["Journals", activity?.journals, null],
+            ["Mood check-ins", activity?.moods, null],
+            ["To-dos done", activity?.todos_done,
+              activity?.todos_total != null ? `of ${activity.todos_total} added` : null],
+          ] as [string, number | undefined, string | null][]).map(([label, value, sub]) => (
+            <div key={label} className="rounded-xl border border-border bg-paper/40 p-3">
+              <div className="text-[10px] uppercase tracking-widest text-muted-foreground">{label}</div>
+              <div className="mt-1 font-display text-xl tabular-nums">{value ?? 0}</div>
+              <div className="text-[10px] text-muted-foreground">{sub ?? "\u00A0"}</div>
+            </div>
+          ))}
+        </div>
+      </section>
 
       <section>
         <h3 className="text-xs uppercase tracking-widest text-muted-foreground mb-2">Wellness — before & now</h3>
