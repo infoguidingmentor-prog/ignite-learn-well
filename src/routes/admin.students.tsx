@@ -146,7 +146,7 @@ function StudentProfile({ id }: { id: string }) {
       </div>
 
       <section>
-        <h3 className="text-xs uppercase tracking-widest text-muted-foreground mb-2">Activity</h3>
+        <h3 className="font-display text-xl mb-3">Activity</h3>
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
           {([
             ["Meditations", activity?.meditations,
@@ -162,9 +162,9 @@ function StudentProfile({ id }: { id: string }) {
               activity?.todos_total != null ? `of ${activity.todos_total} added` : null],
           ] as [string, number | undefined, string | null][]).map(([label, value, sub]) => (
             <div key={label} className="rounded-xl border border-border bg-paper/40 p-3">
-              <div className="text-[10px] uppercase tracking-widest text-muted-foreground">{label}</div>
-              <div className="mt-1 font-display text-xl tabular-nums">{value ?? 0}</div>
-              <div className="text-[10px] text-muted-foreground">{sub ?? "\u00A0"}</div>
+              <div className="text-xs uppercase tracking-widest text-muted-foreground">{label}</div>
+              <div className="mt-1 font-display text-3xl tabular-nums">{value ?? 0}</div>
+              <div className="text-xs text-muted-foreground">{sub ?? "\u00A0"}</div>
             </div>
           ))}
         </div>
@@ -172,81 +172,67 @@ function StudentProfile({ id }: { id: string }) {
 
       <section>
         <div className="mb-2 flex items-center justify-between">
-          <h3 className="text-xs uppercase tracking-widest text-muted-foreground">
+          <h3 className="font-display text-xl">
             Daily use — {monthStart.toLocaleString(undefined, { month: "long", year: "numeric" })}
           </h3>
           <div className="flex items-center gap-2 text-xs">
             <button onClick={() => setMonthOffset((m) => m - 1)}
-              className="rounded-full border border-border px-2 py-0.5">←</button>
+              className="rounded-full border border-border px-3 py-1.5 text-sm">←</button>
             <button onClick={() => setMonthOffset(0)}
-              className="rounded-full border border-border px-2 py-0.5">This month</button>
+              className="rounded-full border border-border px-3 py-1.5 text-sm">This month</button>
             <button onClick={() => setMonthOffset((m) => Math.min(0, m + 1))}
               disabled={monthOffset >= 0}
-              className="rounded-full border border-border px-2 py-0.5 disabled:opacity-30">→</button>
+              className="rounded-full border border-border px-3 py-1.5 text-sm disabled:opacity-30">→</button>
           </div>
         </div>
 
-        <p className="mb-3 text-xs text-muted-foreground">
-          Active on {activeDays} of {daily.length} days
-          {streak > 0 && ` · ${streak}-day streak`}
+        <p className="mb-4 text-base">
+          Used the app on <span className="font-semibold">{activeDays}</span> of {daily.length} days
+          {streak > 0 && <> · <span className="font-semibold">{streak}-day streak</span></>}
         </p>
 
-        <div className="grid grid-cols-7 gap-1">
-          {["M","T","W","T","F","S","S"].map((d, i) => (
-            <div key={i} className="pb-1 text-center text-[10px] text-muted-foreground">{d}</div>
-          ))}
-          {Array.from({ length: (new Date(monthStart).getDay() + 6) % 7 }).map((_, i) => (
-            <div key={`pad${i}`} />
-          ))}
-          {daily.map((r) => {
-            const t = dayTotal(r);
-            const parts = [
-              r.meditations && `${r.meditations} meditation${r.meditations > 1 ? "s" : ""}`,
-              r.focus && `${r.focus} focus`,
-              r.breathing && `${r.breathing} breathing`,
-              r.affirmations && `${r.affirmations} affirmation${r.affirmations > 1 ? "s" : ""}`,
-              r.journals && `${r.journals} journal${r.journals > 1 ? "s" : ""}`,
-              r.moods && `${r.moods} mood`,
-              r.todos_done && `${r.todos_done} to-do${r.todos_done > 1 ? "s" : ""}`,
-            ].filter(Boolean).join(", ");
-            return (
-              <div
-                key={r.day}
-                title={`${r.day}${parts ? ` — ${parts}` : " — no activity"}`}
-                className="aspect-square rounded-md border border-border text-[10px] grid place-items-center"
-                style={{
-                  background: t === 0 ? "transparent"
-                    : `color-mix(in srgb, var(--color-primary) ${Math.min(15 + t * 18, 85)}%, transparent)`,
-                  color: t > 3 ? "white" : undefined,
-                }}
-              >
-                {new Date(r.day).getDate()}
-              </div>
-            );
-          })}
+        <div className="overflow-x-auto rounded-xl border border-border">
+          <table className="w-full min-w-[640px] text-sm">
+            <thead>
+              <tr className="bg-paper/60 text-left text-xs uppercase tracking-wide text-muted-foreground">
+                <th className="px-4 py-3 font-medium">Date</th>
+                <th className="px-3 py-3 font-medium text-center">Meditations</th>
+                <th className="px-3 py-3 font-medium text-center">Focus</th>
+                <th className="px-3 py-3 font-medium text-center">Breathing</th>
+                <th className="px-3 py-3 font-medium text-center">Affirmations</th>
+                <th className="px-3 py-3 font-medium text-center">Journal</th>
+                <th className="px-3 py-3 font-medium text-center">Mood</th>
+                <th className="px-3 py-3 font-medium text-center">To-dos</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-border">
+              {daily.map((r) => {
+                const used = dayTotal(r) > 0;
+                const cell = (n: number) =>
+                  n > 0 ? <span className="font-medium tabular-nums">{n}</span>
+                        : <span className="text-muted-foreground/30">·</span>;
+                return (
+                  <tr key={r.day} className={used ? "" : "opacity-45"}>
+                    <td className="whitespace-nowrap px-4 py-3">
+                      <span className={used ? "font-medium" : "text-muted-foreground"}>
+                        {new Date(r.day).toLocaleDateString(undefined,
+                          { weekday: "short", day: "numeric", month: "short" })}
+                      </span>
+                      {!used && <span className="ml-2 text-xs text-muted-foreground">not used</span>}
+                    </td>
+                    <td className="px-3 py-3 text-center">{cell(r.meditations)}</td>
+                    <td className="px-3 py-3 text-center">{cell(r.focus)}</td>
+                    <td className="px-3 py-3 text-center">{cell(r.breathing)}</td>
+                    <td className="px-3 py-3 text-center">{cell(r.affirmations)}</td>
+                    <td className="px-3 py-3 text-center">{cell(r.journals)}</td>
+                    <td className="px-3 py-3 text-center">{cell(r.moods)}</td>
+                    <td className="px-3 py-3 text-center">{cell(r.todos_done)}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
         </div>
-
-        {daily.some((r) => dayTotal(r) > 0) && (
-          <ul className="mt-3 space-y-1 text-xs text-muted-foreground">
-            {daily.filter((r) => dayTotal(r) > 0).slice(-8).reverse().map((r) => (
-              <li key={`l${r.day}`}>
-                <span className="text-foreground">
-                  {new Date(r.day).toLocaleDateString(undefined, { day: "numeric", month: "short" })}
-                </span>
-                {" — "}
-                {[
-                  r.meditations && `${r.meditations} meditation${r.meditations > 1 ? "s" : ""}`,
-                  r.focus && `${r.focus} focus`,
-                  r.breathing && `${r.breathing} breathing`,
-                  r.affirmations && `${r.affirmations} affirmation${r.affirmations > 1 ? "s" : ""}`,
-                  r.journals && `${r.journals} journal${r.journals > 1 ? "s" : ""}`,
-                  r.moods && `${r.moods} mood check-in`,
-                  r.todos_done && `${r.todos_done} to-do${r.todos_done > 1 ? "s" : ""} done`,
-                ].filter(Boolean).join(" · ")}
-              </li>
-            ))}
-          </ul>
-        )}
       </section>
 
       <section>
