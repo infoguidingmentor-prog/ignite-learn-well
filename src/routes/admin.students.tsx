@@ -101,6 +101,40 @@ function StudentProfile({ id }: { id: string }) {
     },
   });
 
+  const [monthOffset, setMonthOffset] = useState(0);
+  const monthStart = (() => {
+    const d = new Date(); d.setDate(1); d.setMonth(d.getMonth() + monthOffset); return d;
+  })();
+  const monthEnd = new Date(monthStart.getFullYear(), monthStart.getMonth() + 1, 0);
+  const iso = (d: Date) => d.toISOString().slice(0, 10);
+
+  /** One row per day, so gaps in use are as visible as the streaks. */
+  const { data: daily = [] } = useQuery({
+    queryKey: ["student-daily", id, iso(monthStart)],
+    queryFn: async () => {
+      const { data, error } = await (supabase.rpc as any)("student_daily", {
+        _user: id, _from: iso(monthStart), _to: iso(monthEnd),
+      });
+      if (error) throw error;
+      return (data ?? []) as any[];
+    },
+  });
+
+  const dayTotal = (r: any) =>
+    (r.meditations ?? 0) + (r.focus ?? 0) + (r.breathing ?? 0) +
+    (r.affirmations ?? 0) + (r.journals ?? 0) + (r.moods ?? 0) + (r.todos_done ?? 0);
+
+  const activeDays = daily.filter((r) => dayTotal(r) > 0).length;
+
+  const streak = (() => {
+    let n = 0;
+    for (let i = daily.length - 1; i >= 0; i--) {
+      if (new Date(daily[i].day) > new Date()) continue;
+      if (dayTotal(daily[i]) > 0) n++; else break;
+    }
+    return n;
+  })();
+
   const latest = scores[scores.length - 1] as any;
   const first = scores[0] as any;
 
@@ -134,6 +168,85 @@ function StudentProfile({ id }: { id: string }) {
             </div>
           ))}
         </div>
+      </section>
+
+      <section>
+        <div className="mb-2 flex items-center justify-between">
+          <h3 className="text-xs uppercase tracking-widest text-muted-foreground">
+            Daily use — {monthStart.toLocaleString(undefined, { month: "long", year: "numeric" })}
+          </h3>
+          <div className="flex items-center gap-2 text-xs">
+            <button onClick={() => setMonthOffset((m) => m - 1)}
+              className="rounded-full border border-border px-2 py-0.5">←</button>
+            <button onClick={() => setMonthOffset(0)}
+              className="rounded-full border border-border px-2 py-0.5">This month</button>
+            <button onClick={() => setMonthOffset((m) => Math.min(0, m + 1))}
+              disabled={monthOffset >= 0}
+              className="rounded-full border border-border px-2 py-0.5 disabled:opacity-30">→</button>
+          </div>
+        </div>
+
+        <p className="mb-3 text-xs text-muted-foreground">
+          Active on {activeDays} of {daily.length} days
+          {streak > 0 && ` · ${streak}-day streak`}
+        </p>
+
+        <div className="grid grid-cols-7 gap-1">
+          {["M","T","W","T","F","S","S"].map((d, i) => (
+            <div key={i} className="pb-1 text-center text-[10px] text-muted-foreground">{d}</div>
+          ))}
+          {Array.from({ length: (new Date(monthStart).getDay() + 6) % 7 }).map((_, i) => (
+            <div key={`pad${i}`} />
+          ))}
+          {daily.map((r) => {
+            const t = dayTotal(r);
+            const parts = [
+              r.meditations && `${r.meditations} meditation${r.meditations > 1 ? "s" : ""}`,
+              r.focus && `${r.focus} focus`,
+              r.breathing && `${r.breathing} breathing`,
+              r.affirmations && `${r.affirmations} affirmation${r.affirmations > 1 ? "s" : ""}`,
+              r.journals && `${r.journals} journal${r.journals > 1 ? "s" : ""}`,
+              r.moods && `${r.moods} mood`,
+              r.todos_done && `${r.todos_done} to-do${r.todos_done > 1 ? "s" : ""}`,
+            ].filter(Boolean).join(", ");
+            return (
+              <div
+                key={r.day}
+                title={`${r.day}${parts ? ` — ${parts}` : " — no activity"}`}
+                className="aspect-square rounded-md border border-border text-[10px] grid place-items-center"
+                style={{
+                  background: t === 0 ? "transparent"
+                    : `color-mix(in srgb, var(--color-primary) ${Math.min(15 + t * 18, 85)}%, transparent)`,
+                  color: t > 3 ? "white" : undefined,
+                }}
+              >
+                {new Date(r.day).getDate()}
+              </div>
+            );
+          })}
+        </div>
+
+        {daily.some((r) => dayTotal(r) > 0) && (
+          <ul className="mt-3 space-y-1 text-xs text-muted-foreground">
+            {daily.filter((r) => dayTotal(r) > 0).slice(-8).reverse().map((r) => (
+              <li key={`l${r.day}`}>
+                <span className="text-foreground">
+                  {new Date(r.day).toLocaleDateString(undefined, { day: "numeric", month: "short" })}
+                </span>
+                {" — "}
+                {[
+                  r.meditations && `${r.meditations} meditation${r.meditations > 1 ? "s" : ""}`,
+                  r.focus && `${r.focus} focus`,
+                  r.breathing && `${r.breathing} breathing`,
+                  r.affirmations && `${r.affirmations} affirmation${r.affirmations > 1 ? "s" : ""}`,
+                  r.journals && `${r.journals} journal${r.journals > 1 ? "s" : ""}`,
+                  r.moods && `${r.moods} mood check-in`,
+                  r.todos_done && `${r.todos_done} to-do${r.todos_done > 1 ? "s" : ""} done`,
+                ].filter(Boolean).join(" · ")}
+              </li>
+            ))}
+          </ul>
+        )}
       </section>
 
       <section>
