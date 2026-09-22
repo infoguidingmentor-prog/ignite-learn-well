@@ -106,7 +106,9 @@ function StudentProfile({ id }: { id: string }) {
     const d = new Date(); d.setDate(1); d.setMonth(d.getMonth() + monthOffset); return d;
   })();
   const monthEnd = new Date(monthStart.getFullYear(), monthStart.getMonth() + 1, 0);
-  const iso = (d: Date) => d.toISOString().slice(0, 10);
+  const iso = (d: Date) =>
+    `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  const todayIso = iso(new Date());
 
   /** One row per day, so gaps in use are as visible as the streaks. */
   const { data: daily = [] } = useQuery({
@@ -116,7 +118,7 @@ function StudentProfile({ id }: { id: string }) {
         _user: id, _from: iso(monthStart), _to: iso(monthEnd),
       });
       if (error) throw error;
-      return (data ?? []) as any[];
+      return ((data ?? []) as any[]).filter((r) => String(r.day).slice(0, 10) <= todayIso);
     },
   });
 
@@ -129,7 +131,6 @@ function StudentProfile({ id }: { id: string }) {
   const streak = (() => {
     let n = 0;
     for (let i = daily.length - 1; i >= 0; i--) {
-      if (new Date(daily[i].day) > new Date()) continue;
       if (dayTotal(daily[i]) > 0) n++; else break;
     }
     return n;
@@ -189,6 +190,15 @@ function StudentProfile({ id }: { id: string }) {
         <p className="mb-4 text-base">
           Used the app on <span className="font-semibold">{activeDays}</span> of {daily.length} days
           {streak > 0 && <> · <span className="font-semibold">{streak}-day streak</span></>}
+          {(() => {
+            const last = [...daily].reverse().find((r) => dayTotal(r) > 0);
+            if (!last) return null;
+            const days = Math.round(
+              (new Date(todayIso).getTime() - new Date(String(last.day).slice(0, 10)).getTime()) / 86400000);
+            return days > 1
+              ? <> · last active <span className="font-semibold">{days} days ago</span></>
+              : null;
+          })()}
         </p>
 
         <div className="overflow-x-auto rounded-xl border border-border">
@@ -206,7 +216,7 @@ function StudentProfile({ id }: { id: string }) {
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
-              {daily.map((r) => {
+              {[...daily].reverse().map((r) => {
                 const used = dayTotal(r) > 0;
                 const cell = (n: number) =>
                   n > 0 ? <span className="font-medium tabular-nums">{n}</span>
