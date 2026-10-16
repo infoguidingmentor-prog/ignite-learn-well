@@ -11,6 +11,7 @@ const TABS = [
   { to: "/practice/journal",  label: "Journal",  key: "journal" },
   { to: "/practice/mood",     label: "Mood",     key: null },
   { to: "/practice/breathe",  label: "Breathe",  key: null },
+  { to: "/focus",             label: "Focus",    key: null },
 ] as const;
 
 type Game = {
