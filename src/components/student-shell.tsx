@@ -1,15 +1,15 @@
 import { Link, useRouterState } from "@tanstack/react-router";
-import { Home, Sparkles, Timer, CalendarDays, User, TrendingUp } from "lucide-react";
+import { Home, Sparkles, CalendarDays, User, TrendingUp, Flower2 } from "lucide-react";
 import type { ReactNode } from "react";
 import { cn } from "@/lib/utils";
 
 const TABS = [
-  { to: "/home",     label: "Home",     icon: Home },
-  { to: "/practice", label: "Practice", icon: Sparkles },
-  { to: "/focus",    label: "Focus",    icon: Timer },
-  { to: "/grow",     label: "Grow",     icon: TrendingUp },
-  { to: "/plan",     label: "Plan",     icon: CalendarDays },
-  { to: "/me",       label: "Me",       icon: User },
+  { to: "/home",       label: "Home",     icon: Home },
+  { to: "/practice",   label: "Practice", icon: Flower2 },
+  { to: "/grow",       label: "Grow",     icon: TrendingUp },
+  { to: "/study-plan", label: "Plan",     icon: CalendarDays },
+  { to: "/guide",      label: "Guide",    icon: Sparkles },
+  { to: "/me",         label: "Me",       icon: User },
 ] as const;
 
 export function StudentShell({ children }: { children: ReactNode }) {
@@ -35,7 +35,7 @@ export function StudentShell({ children }: { children: ReactNode }) {
                     active ? "text-primary" : "text-muted-foreground hover:text-foreground"
                   )}
                 >
-                  <Icon className={cn("size-5", active && "stroke-[2.2]")} />
+                  <Icon className={cn("size-5 transition-transform", active && "-translate-y-0.5 stroke-[2.2]")} />
                   <span>{label}</span>
                 </Link>
               </li>
