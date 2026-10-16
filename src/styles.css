@@ -59,23 +59,22 @@
 :root {
   --radius: 16px;
 
-  /* Dawn — light */
   --ink: #050505;
   --paper: #F6F8FC;
-  --sage: #003C94;        /* brand blue */
+  --sage: #003C94;
   --sage-soft: #E6EEFA;
   --dusk: #0B1B3A;
   --apricot: #E8A33D;
   --teal: #00BFC9;
   --slate-muted: #6B7688;
 
-  --background: #F6F8FC;
-  --foreground: #050505;
+  --background: #F4F7FC;
+  --foreground: #0C1220;
 
   --card: #FFFFFF;
-  --card-foreground: #050505;
+  --card-foreground: #0C1220;
   --popover: #FFFFFF;
-  --popover-foreground: #050505;
+  --popover-foreground: #0C1220;
 
   --primary: #003C94;
   --primary-foreground: #FFFFFF;
@@ -84,27 +83,34 @@
   --secondary-foreground: #0B1B3A;
 
   --muted: #EEF1F7;
-  --muted-foreground: #6B7688;
+  --muted-foreground: #68728A;
 
   --accent: #E6EEFA;
   --accent-foreground: #0B1B3A;
 
-  /* Deliberately not red — this app never shows alarm colours to students. */
+  /* Deliberately amber, not red. This app never alarms a student. */
   --destructive: #8A5A00;
   --destructive-foreground: #FFFFFF;
 
-  --border: #E2E8F2;
-  --input: #E2E8F2;
+  --border: #E3E8F2;
+  --input: #E3E8F2;
   --ring: #003C94;
 
   --sidebar: #FFFFFF;
-  --sidebar-foreground: #050505;
+  --sidebar-foreground: #0C1220;
   --sidebar-primary: #003C94;
   --sidebar-primary-foreground: #FFFFFF;
   --sidebar-accent: #E6EEFA;
   --sidebar-accent-foreground: #0B1B3A;
-  --sidebar-border: #E2E8F2;
+  --sidebar-border: #E3E8F2;
   --sidebar-ring: #003C94;
+
+  /* One place to retune every animation in the app. */
+  --ease-out: cubic-bezier(.22, .9, .3, 1);
+  --ease-spring: cubic-bezier(.3, 1.4, .5, 1);
+  --dur-fast: .18s;
+  --dur-base: .32s;
+  --dur-slow: .9s;
 }
 
 .dark {
@@ -117,7 +123,7 @@
   --teal: #00BFC9;
   --slate-muted: #9AA5B8;
 
-  --background: #0B1222;
+  --background: #0A101E;
   --foreground: #F2F5FA;
 
   --card: #121B2E;
@@ -155,12 +161,11 @@
 }
 
 @layer base {
-  * {
-    border-color: var(--border);
-  }
+  * { border-color: var(--border); }
 
   html {
     -webkit-text-size-adjust: 100%;
+    scroll-behavior: smooth;
   }
 
   body {
@@ -170,6 +175,8 @@
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
     font-feature-settings: "ss01", "cv11";
+    /* Stops iOS rubber-banding revealing a white strip under the nav bar. */
+    overscroll-behavior-y: none;
   }
 
   h1, h2, h3, h4 {
@@ -177,53 +184,63 @@
     font-weight: 600;
     letter-spacing: -0.015em;
   }
+  h1 { line-height: 1.15; }
 
-  /* Visible focus for anyone navigating by keyboard. */
+  ::selection { background: var(--sage-soft); color: var(--dusk); }
+
   :focus-visible {
     outline: 2px solid var(--ring);
     outline-offset: 2px;
+    border-radius: 6px;
   }
-}
 
-/* The card used throughout the student and staff screens. */
-.soft-card {
-  background-color: var(--card);
-  color: var(--card-foreground);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  box-shadow:
-    0 1px 2px rgba(16, 24, 40, 0.04),
-    0 8px 24px rgba(16, 24, 40, 0.06);
-}
+  /* Native controls inherit the design system instead of the browser's. */
+  input, textarea, select {
+    font: inherit;
+    color: inherit;
+    transition: border-color var(--dur-fast) ease, box-shadow var(--dur-fast) ease;
+  }
+  input:focus, textarea:focus, select:focus {
+    border-color: var(--primary);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary) 14%, transparent);
+    outline: none;
+  }
+  ::placeholder { color: var(--muted-foreground); opacity: .8; }
 
-.font-display {
-  font-family: var(--font-display);
+  button { transition: transform var(--dur-fast) ease, opacity var(--dur-fast) ease; }
+  button:active:not(:disabled) { transform: scale(.985); }
+  button:disabled { cursor: not-allowed; }
+
+  /* A slim scrollbar rather than the default slab. */
+  * { scrollbar-width: thin; scrollbar-color: color-mix(in srgb, var(--muted-foreground) 35%, transparent) transparent; }
+  *::-webkit-scrollbar { width: 6px; height: 6px; }
+  *::-webkit-scrollbar-thumb {
+    background: color-mix(in srgb, var(--muted-foreground) 30%, transparent);
+    border-radius: 999px;
+  }
+  *::-webkit-scrollbar-track { background: transparent; }
 }
 
 /* ===========================================================================
-   Motion utilities
+   Motion
    Restrained on purpose: things rise, settle and draw in. Nothing bounces,
    nothing celebrates at a student who is already under exam pressure.
    =========================================================================== */
 
-@keyframes gm-rise {
-  from { opacity: 0; transform: translateY(12px); }
-  to   { opacity: 1; transform: none; }
-}
-@keyframes gm-pop {
-  from { opacity: 0; transform: scale(.6); }
-  to   { opacity: 1; transform: none; }
-}
-@keyframes gm-breathe {
-  0%, 100% { transform: scale(1); }
-  50%      { transform: scale(1.07); }
-}
+@keyframes gm-rise  { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: none; } }
+@keyframes gm-fade  { from { opacity: 0; transform: translateY(6px);  } to { opacity: 1; transform: none; } }
+@keyframes gm-pop   { from { opacity: 0; transform: scale(.6); }       to { opacity: 1; transform: none; } }
+@keyframes gm-breathe { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.07); } }
+@keyframes gm-shimmer { from { background-position: -420px 0; } to { background-position: 420px 0; } }
 
-.gm-rise    { animation: gm-rise .42s cubic-bezier(.22,.9,.3,1) both; }
-.gm-pop     { animation: gm-pop .4s cubic-bezier(.3,1.5,.5,1) both; }
+.gm-rise    { animation: gm-rise var(--dur-base) var(--ease-out) both; }
+.gm-pop     { animation: gm-pop .4s var(--ease-spring) both; }
 .gm-breathe { animation: gm-breathe 3.4s ease-in-out infinite; }
 
-.gm-stagger > *              { animation: gm-rise .42s cubic-bezier(.22,.9,.3,1) both; }
+/* Every route fades up on entry — the shell already applies this class. */
+.page-fade { animation: gm-fade var(--dur-base) var(--ease-out) both; }
+
+.gm-stagger > *              { animation: gm-rise var(--dur-base) var(--ease-out) both; }
 .gm-stagger > *:nth-child(1) { animation-delay: .03s; }
 .gm-stagger > *:nth-child(2) { animation-delay: .08s; }
 .gm-stagger > *:nth-child(3) { animation-delay: .13s; }
@@ -234,9 +251,53 @@
 
 .gm-bar     { height: 8px; border-radius: 999px; background: var(--secondary); overflow: hidden; }
 .gm-bar > i { display: block; height: 100%; border-radius: 999px; background: var(--primary);
-              transition: width 1s cubic-bezier(.3,.9,.3,1); }
+              transition: width var(--dur-slow) var(--ease-out); }
 
+/* Loading placeholder: <div class="gm-skeleton" style="height:64px"></div> */
+.gm-skeleton {
+  border-radius: var(--radius);
+  background: linear-gradient(90deg,
+    var(--secondary) 25%,
+    color-mix(in srgb, var(--secondary) 60%, var(--card)) 37%,
+    var(--secondary) 63%);
+  background-size: 840px 100%;
+  animation: gm-shimmer 1.3s linear infinite;
+}
+
+/* ===========================================================================
+   The card every screen is built from — one definition, whole app.
+   =========================================================================== */
+.soft-card {
+  background-color: var(--card);
+  color: var(--card-foreground);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow:
+    0 1px 2px rgba(12, 18, 32, 0.04),
+    0 8px 24px rgba(12, 18, 32, 0.055);
+  transition: box-shadow var(--dur-base) ease, transform var(--dur-base) var(--ease-out);
+}
+
+/* Cards that are links or buttons lift slightly; static cards stay put. */
+a.soft-card:hover,
+button.soft-card:hover {
+  transform: translateY(-2px);
+  box-shadow:
+    0 2px 4px rgba(12, 18, 32, 0.05),
+    0 14px 32px rgba(12, 18, 32, 0.10);
+}
+
+.font-display { font-family: var(--font-display); }
+
+/* Numbers that change should not make the layout jump. */
+.tabular-nums { font-variant-numeric: tabular-nums; }
+
+/* ===========================================================================
+   Accessibility
+   =========================================================================== */
 @media (prefers-reduced-motion: reduce) {
-  .gm-rise, .gm-pop, .gm-breathe, .gm-stagger > * { animation: none !important; }
-  .gm-bar > i { transition: none !important; }
+  html { scroll-behavior: auto; }
+  .gm-rise, .gm-pop, .gm-breathe, .page-fade,
+  .gm-stagger > *, .gm-skeleton { animation: none !important; }
+  .gm-bar > i, .soft-card, button { transition: none !important; }
 }
