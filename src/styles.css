@@ -1,6 +1,207 @@
+@import "tailwindcss" source(none);
+@source "../src";
+@import "tw-animate-css";
+
+@custom-variant dark (&:is(.dark *));
+
+/* Guiding Mentor — "dawn" palette. Warm, calm, teenager-safe. No red anywhere. */
+
+@theme inline {
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --radius-xl: 20px;
+  --radius-2xl: 24px;
+  --radius-full: 999px;
+
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+
+  --color-sage: var(--sage);
+  --color-sage-soft: var(--sage-soft);
+  --color-dusk: var(--dusk);
+  --color-apricot: var(--apricot);
+  --color-slate-muted: var(--slate-muted);
+  --color-ink: var(--ink);
+  --color-paper: var(--paper);
+  --color-teal: var(--teal);
+
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+
+  --font-sans: "Inter Tight", ui-sans-serif, system-ui, sans-serif;
+  --font-display: "Archivo", "Inter Tight", ui-sans-serif, system-ui, sans-serif;
+}
+
+:root {
+  --radius: 16px;
+
+  /* Dawn — light */
+  --ink: #050505;
+  --paper: #F6F8FC;
+  --sage: #003C94;        /* brand blue */
+  --sage-soft: #E6EEFA;
+  --dusk: #0B1B3A;
+  --apricot: #E8A33D;
+  --teal: #00BFC9;
+  --slate-muted: #6B7688;
+
+  --background: #F6F8FC;
+  --foreground: #050505;
+
+  --card: #FFFFFF;
+  --card-foreground: #050505;
+  --popover: #FFFFFF;
+  --popover-foreground: #050505;
+
+  --primary: #003C94;
+  --primary-foreground: #FFFFFF;
+
+  --secondary: #EAEFF8;
+  --secondary-foreground: #0B1B3A;
+
+  --muted: #EEF1F7;
+  --muted-foreground: #6B7688;
+
+  --accent: #E6EEFA;
+  --accent-foreground: #0B1B3A;
+
+  /* Deliberately not red — this app never shows alarm colours to students. */
+  --destructive: #8A5A00;
+  --destructive-foreground: #FFFFFF;
+
+  --border: #E2E8F2;
+  --input: #E2E8F2;
+  --ring: #003C94;
+
+  --sidebar: #FFFFFF;
+  --sidebar-foreground: #050505;
+  --sidebar-primary: #003C94;
+  --sidebar-primary-foreground: #FFFFFF;
+  --sidebar-accent: #E6EEFA;
+  --sidebar-accent-foreground: #0B1B3A;
+  --sidebar-border: #E2E8F2;
+  --sidebar-ring: #003C94;
+}
+
+.dark {
+  --ink: #F6F8FC;
+  --paper: #0B1222;
+  --sage: #6E8FCB;
+  --sage-soft: #16233D;
+  --dusk: #050C1A;
+  --apricot: #E8A33D;
+  --teal: #00BFC9;
+  --slate-muted: #9AA5B8;
+
+  --background: #0B1222;
+  --foreground: #F2F5FA;
+
+  --card: #121B2E;
+  --card-foreground: #F2F5FA;
+  --popover: #121B2E;
+  --popover-foreground: #F2F5FA;
+
+  --primary: #6E8FCB;
+  --primary-foreground: #06101F;
+
+  --secondary: #1A2439;
+  --secondary-foreground: #E7ECF5;
+
+  --muted: #182134;
+  --muted-foreground: #9AA5B8;
+
+  --accent: #1A2439;
+  --accent-foreground: #E7ECF5;
+
+  --destructive: #C2893A;
+  --destructive-foreground: #06101F;
+
+  --border: #233049;
+  --input: #233049;
+  --ring: #6E8FCB;
+
+  --sidebar: #121B2E;
+  --sidebar-foreground: #F2F5FA;
+  --sidebar-primary: #6E8FCB;
+  --sidebar-primary-foreground: #06101F;
+  --sidebar-accent: #1A2439;
+  --sidebar-accent-foreground: #E7ECF5;
+  --sidebar-border: #233049;
+  --sidebar-ring: #6E8FCB;
+}
+
+@layer base {
+  * {
+    border-color: var(--border);
+  }
+
+  html {
+    -webkit-text-size-adjust: 100%;
+  }
+
+  body {
+    background-color: var(--background);
+    color: var(--foreground);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    font-feature-settings: "ss01", "cv11";
+  }
+
+  h1, h2, h3, h4 {
+    font-family: var(--font-display);
+    font-weight: 600;
+    letter-spacing: -0.015em;
+  }
+
+  /* Visible focus for anyone navigating by keyboard. */
+  :focus-visible {
+    outline: 2px solid var(--ring);
+    outline-offset: 2px;
+  }
+}
+
+/* The card used throughout the student and staff screens. */
+.soft-card {
+  background-color: var(--card);
+  color: var(--card-foreground);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow:
+    0 1px 2px rgba(16, 24, 40, 0.04),
+    0 8px 24px rgba(16, 24, 40, 0.06);
+}
+
+.font-display {
+  font-family: var(--font-display);
+}
+
 /* ===========================================================================
-   Guiding Mentor — motion utilities
-   Paste this at the very END of src/styles.css.
+   Motion utilities
    Restrained on purpose: things rise, settle and draw in. Nothing bounces,
    nothing celebrates at a student who is already under exam pressure.
    =========================================================================== */
@@ -22,8 +223,7 @@
 .gm-pop     { animation: gm-pop .4s cubic-bezier(.3,1.5,.5,1) both; }
 .gm-breathe { animation: gm-breathe 3.4s ease-in-out infinite; }
 
-/* Children fade up one after another — use on a list wrapper. */
-.gm-stagger > *          { animation: gm-rise .42s cubic-bezier(.22,.9,.3,1) both; }
+.gm-stagger > *              { animation: gm-rise .42s cubic-bezier(.22,.9,.3,1) both; }
 .gm-stagger > *:nth-child(1) { animation-delay: .03s; }
 .gm-stagger > *:nth-child(2) { animation-delay: .08s; }
 .gm-stagger > *:nth-child(3) { animation-delay: .13s; }
@@ -32,12 +232,10 @@
 .gm-stagger > *:nth-child(6) { animation-delay: .28s; }
 .gm-stagger > *:nth-child(7) { animation-delay: .33s; }
 
-/* Bars that fill when they appear: <div class="gm-bar"><i style="width:64%"></i></div> */
-.gm-bar    { height: 8px; border-radius: 999px; background: var(--secondary); overflow: hidden; }
-.gm-bar > i{ display: block; height: 100%; border-radius: 999px; background: var(--primary);
-             transition: width 1s cubic-bezier(.3,.9,.3,1); }
+.gm-bar     { height: 8px; border-radius: 999px; background: var(--secondary); overflow: hidden; }
+.gm-bar > i { display: block; height: 100%; border-radius: 999px; background: var(--primary);
+              transition: width 1s cubic-bezier(.3,.9,.3,1); }
 
-/* Anyone who asked their device to calm down gets a still interface. */
 @media (prefers-reduced-motion: reduce) {
   .gm-rise, .gm-pop, .gm-breathe, .gm-stagger > * { animation: none !important; }
   .gm-bar > i { transition: none !important; }
