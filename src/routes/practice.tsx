@@ -6,12 +6,12 @@ import { Protected } from "@/components/protected";
 import { cn } from "@/lib/utils";
 
 const TABS = [
-  { to: "/practice/meditate", label: "Meditate", key: "meditation" },
-  { to: "/practice/affirm",   label: "Affirm",   key: "affirmation" },
-  { to: "/practice/journal",  label: "Journal",  key: "journal" },
-  { to: "/practice/mood",     label: "Mood",     key: null },
-  { to: "/practice/breathe",  label: "Breathe",  key: null },
-  { to: "/focus",             label: "Focus",    key: null },
+  { to: "/practice/meditate", label: "Meditate",    key: "meditation" },
+  { to: "/practice/affirm",   label: "Affirmation", key: "affirmation" },
+  { to: "/practice/journal",  label: "Journal",     key: "journal" },
+  { to: "/practice/mood",     label: "Mood",        key: null },
+  { to: "/practice/breathe",  label: "Breathe",     key: null },
+  { to: "/focus",             label: "Focus",       key: null },
 ] as const;
 
 type Game = {
